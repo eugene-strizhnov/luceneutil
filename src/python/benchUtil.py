@@ -1109,24 +1109,24 @@ class RunAlgs:
     if not os.path.exists(os.path.join(checkoutPath, 'build.gradle')):
       return self.antCompile(competitor)
     try:
-      if competitor.checkout not in self.compiledCheckouts:
-        self.compiledCheckouts.add(competitor.checkout);
-        # for core we build a JAR in order to benefit from the MR JAR stuff
-        os.chdir(checkoutPath)
-        for module in ['core']:
-          print('compile lucene:core...')
-          run([constants.GRADLE_EXE, 'lucene:core:jar'], '%s/compile.log' % constants.LOGS_DIR)
-        for module in ('suggest', 'highlighter', 'misc',
-                       'analysis:common', 'grouping',
-                       'codecs', 'facet', 'sandbox',
-                       'queryparser'):
-          # Try to be faster; this may miss changes, e.g. a static final constant changed in core that is used in another module:
-          modulePath = '%s/lucene/%s' % (checkoutPath, module.replace(':', '/'))
-          classesPath = '%s/build/classes/java' % (modulePath)
-          lastCompileTime = common.getLatestModTime(classesPath, '.class')
-          if common.getLatestModTime('%s/src/java' % modulePath) > lastCompileTime:
-            print('compile lucene:%s...' % module)
-            run([constants.GRADLE_EXE, 'lucene:%s:compileJava' % module], '%s/compile.log' % constants.LOGS_DIR)
+      # if competitor.checkout not in self.compiledCheckouts:
+      #   self.compiledCheckouts.add(competitor.checkout);
+      #   # for core we build a JAR in order to benefit from the MR JAR stuff
+      #   os.chdir(checkoutPath)
+      #   for module in ['core']:
+      #     print('compile lucene:core...')
+      #     run([constants.GRADLE_EXE, 'lucene:core:jar'], '%s/compile.log' % constants.LOGS_DIR)
+      #   for module in ('suggest', 'highlighter', 'misc',
+      #                  'analysis:common', 'grouping',
+      #                  'codecs', 'facet', 'sandbox',
+      #                  'queryparser'):
+      #     # Try to be faster; this may miss changes, e.g. a static final constant changed in core that is used in another module:
+      #     modulePath = '%s/lucene/%s' % (checkoutPath, module.replace(':', '/'))
+      #     classesPath = '%s/build/classes/java' % (modulePath)
+      #     lastCompileTime = common.getLatestModTime(classesPath, '.class')
+      #     if common.getLatestModTime('%s/src/java' % modulePath) > lastCompileTime:
+      #       print('compile lucene:%s...' % module)
+      #       run([constants.GRADLE_EXE, 'lucene:%s:compileJava' % module], '%s/compile.log' % constants.LOGS_DIR)
 
       print('  %s' % path)
       os.chdir(path)

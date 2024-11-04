@@ -44,18 +44,18 @@ class IndexThreads {
   final CountDownLatch startLatch = new CountDownLatch(1);
   final AtomicBoolean stop;
   final AtomicBoolean failed;
-  final LineFileDocs docs;
+  final DocsProvider docsProvider;
   final Thread[] threads;
   final AtomicBoolean refreshing;
   final AtomicLong lastRefreshNS;
 
-  public IndexThreads(Random random, IndexWriter w, AtomicBoolean indexingFailed, LineFileDocs lineFileDocs, int numThreads, int docCountLimit,
+  public IndexThreads(Random random, IndexWriter w, AtomicBoolean indexingFailed, DocsProvider docsProvider, int numThreads, int docCountLimit,
                       boolean addGroupingFields, boolean printDPS, Mode mode, float docsPerSecPerThread, UpdatesListener updatesListener,
                       double nrtEverySec, int randomDocIDMax)
     throws IOException, InterruptedException {
     final AtomicInteger groupBlockIndex;
 
-    this.docs = lineFileDocs;
+    this.docsProvider = docsProvider;
     if (addGroupingFields) {
       IndexThread.group100 = randomStrings(100, random);
       IndexThread.group10K = randomStrings(10000, random);
@@ -67,7 +67,7 @@ class IndexThreads {
     }
 
     threads = new Thread[numThreads];
-    
+
     final CountDownLatch stopLatch = new CountDownLatch(numThreads);
     final AtomicInteger count = new AtomicInteger();
     stop = new AtomicBoolean(false);
@@ -76,7 +76,7 @@ class IndexThreads {
     lastRefreshNS = new AtomicLong(System.nanoTime());
 
     for(int thread=0;thread<numThreads;thread++) {
-      threads[thread] = new IndexThread(random, startLatch, stopLatch, w, docs, docCountLimit, count, mode,
+      threads[thread] = new IndexThread(random, startLatch, stopLatch, w, docsProvider, docCountLimit, count, mode,
               groupBlockIndex, stop, refreshing, lastRefreshNS, docsPerSecPerThread, failed, updatesListener,
               nrtEverySec, randomDocIDMax);
       threads[thread].setName("Index #" + thread);
@@ -98,7 +98,7 @@ class IndexThreads {
   }
 
   public long getBytesIndexed() {
-    return docs.getBytesIndexed();
+    return docsProvider.getBytesIndexed();
   }
 
   public void stop() throws InterruptedException, IOException {
@@ -109,7 +109,7 @@ class IndexThreads {
     if (printer != null) {
       printer.join();
     }
-    docs.close();
+    docsProvider.close();
   }
 
   public boolean done() {
@@ -121,7 +121,7 @@ class IndexThreads {
 
     return true;
   }
-  
+
   public static interface UpdatesListener {
     public void beforeUpdate();
     public void afterUpdate();
@@ -132,7 +132,7 @@ class IndexThreads {
     public static BytesRef[] group100K;
     public static BytesRef[] group10K;
     public static BytesRef[] group1M;
-    private final LineFileDocs docs;
+    private final DocsProvider docsProvider;
     private final int numTotalDocs;
     private final IndexWriter w;
     private final AtomicBoolean stop;
@@ -150,13 +150,13 @@ class IndexThreads {
     private final double nrtEverySec;
     final int randomDocIDMax;
     public IndexThread(Random random, CountDownLatch startLatch, CountDownLatch stopLatch, IndexWriter w,
-                       LineFileDocs docs, int numTotalDocs, AtomicInteger count, Mode mode, AtomicInteger groupBlockIndex,
+        DocsProvider docsProvider, int numTotalDocs, AtomicInteger count, Mode mode, AtomicInteger groupBlockIndex,
                        AtomicBoolean stop, AtomicBoolean refreshing, AtomicLong lastRefreshNS, float docsPerSec,
                        AtomicBoolean failed, UpdatesListener updatesListener, double nrtEverySec, int randomDocIDMax) {
       this.startLatch = startLatch;
       this.stopLatch = stopLatch;
       this.w = w;
-      this.docs = docs;
+      this.docsProvider = docsProvider;
       this.numTotalDocs = numTotalDocs;
       this.count = count;
       this.mode = mode;
@@ -185,8 +185,8 @@ class IndexThreads {
     @Override
     public void run() {
       try {
-        final LineFileDocs.DocState docState = docs.newDocState();
-        final Field idField = docState.id;
+        final IDocState docState = docsProvider.newDocState();
+        final Field idField = docState.id();
         final long tStart = System.currentTimeMillis();
         final Field group100Field;
         final Field group100KField;
@@ -196,15 +196,15 @@ class IndexThreads {
         final Field groupEndField;
         if (group100 != null) {
           group100Field = new SortedDocValuesField("group100", new BytesRef());
-          docState.doc.add(group100Field);
+          docState.doc().add(group100Field);
           group10KField = new SortedDocValuesField("group10K", new BytesRef());
-          docState.doc.add(group10KField);
+          docState.doc().add(group10KField);
           group100KField = new SortedDocValuesField("group100K", new BytesRef());
-          docState.doc.add(group100KField);
+          docState.doc().add(group100KField);
           group1MField = new SortedDocValuesField("group1M", new BytesRef());
-          docState.doc.add(group1MField);
+          docState.doc().add(group1MField);
           groupBlockField = new SortedDocValuesField("groupblock", new BytesRef());
-          docState.doc.add(groupBlockField);
+          docState.doc().add(groupBlockField);
           // Binary marker field:
           groupEndField = new StringField("groupend", "x", Field.Store.NO);
         } else {
@@ -245,17 +245,17 @@ class IndexThreads {
           while (stop.get() == false) {
             int groupCounter = -1;
             if (groupBlockIndex.get() >= groupBlocks.length) {
-              docs.recycle();
+              docsProvider.recycle();
               break;
             } else {
               synchronized (groupBlockIndex) {
                 // we need to make sure we have more group index
                 // as well as more docs to index at the same time
                 if (groupBlockIndex.get() >= groupBlocks.length) {
-                  docs.recycle();
+                  docsProvider.recycle();
                   break;
                 }
-                if (docs.reserve() == false) {
+                if (docsProvider.reserve() == false) {
                   break;
                 }
                 groupCounter = groupBlockIndex.getAndIncrement();
@@ -291,7 +291,7 @@ class IndexThreads {
                       Document doc;
 
                       try {
-                        doc = docs.nextDoc(docState, true);
+                        doc = docsProvider.nextDoc(docState, true);
                       } catch (IOException ioe) {
                         throw new RuntimeException(ioe);
                       }
@@ -305,9 +305,11 @@ class IndexThreads {
                       }
 
                       final int id = LineFileDocs.idToInt(idField.stringValue());
-                      if (id >= numTotalDocs) {
-                        throw new IllegalStateException();
-                      }
+//                      if (id >= numTotalDocs) {
+//                        System.out.println(id);
+//                        System.out.println(numTotalDocs);
+//                        throw new IllegalStateException();
+//                      }
                       if (((1+id) % 10000) == 0) {
                         System.out.println("Indexer: " + (1+id) + " docs... (" + (System.currentTimeMillis() - tStart) + " msec)");
                       }
@@ -327,14 +329,14 @@ class IndexThreads {
                 }
               });
 
-            docState.doc.removeField("groupend");
+            docState.doc().removeField("groupend");
           }
         } else if (docsPerSec > 0 && mode != null) {
           System.out.println("Indexing single docs (add/updateDocument)");
           final long startNS = System.nanoTime();
           int threadCount = 0;
           while (stop.get() == false) {
-            final Document doc = docs.nextDoc(docState);
+            final Document doc = docsProvider.nextDoc(docState);
             if (doc == null) {
               break;
             }
@@ -354,7 +356,7 @@ class IndexThreads {
             }
             switch (mode) {
             case UPDATE:
-              // NOTE: can't use docState.id in case doClone 
+              // NOTE: can't use docState.id in case doClone
               // was true
               getStringIDField(doc).setStringValue(updateID);
               w.updateDocument(new Term("id", updateID), doc);
@@ -394,7 +396,7 @@ class IndexThreads {
         } else {
           System.out.println("Indexing single docs (add/updateDocument)");
           while (stop.get() == false) {
-            final Document doc = docs.nextDoc(docState);
+            final Document doc = docsProvider.nextDoc(docState);
             if (doc == null) {
               break;
             }

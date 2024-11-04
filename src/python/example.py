@@ -41,6 +41,7 @@ if __name__ == '__main__':
   countsAreCorrect = args.searchConcurrency != 0
   comp =  competition.Competition(verifyCounts = not countsAreCorrect)
 
+
   index = comp.newIndex(args.baseline, sourceData,
                         addDVFields = True,
                         useCMS = True,
@@ -56,7 +57,7 @@ if __name__ == '__main__':
 
   # create a competitor named baseline with sources in the ../trunk folder
   comp.competitor('baseline', args.baseline,
-                  index = index, searchConcurrency = args.searchConcurrency)
+                  index = index)
 
   # use the same index as baseline unless --reindex was passed.
   # create a competitor named my_modified_version (or provided candidate name) with sources in the ../patch folder
@@ -76,7 +77,7 @@ if __name__ == '__main__':
                                   ('taxonomy:RandomLabel', 'RandomLabel'),
                                   ('sortedset:RandomLabel', 'RandomLabel')))
   comp.competitor('my_modified_version', args.candidate,
-                  index = candidate_index, searchConcurrency = args.searchConcurrency)
+                  index = candidate_index)
 
   # start the benchmark - this can take long depending on your index and machines
   comp.benchmark("baseline_vs_patch")

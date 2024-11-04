@@ -243,6 +243,7 @@ public final class Indexer {
     } 
 
     final String lineFile = args.getString("-lineDocsFile");
+
     String vectorFile;
     int vectorDimension;
     VectorEncoding vectorEncoding;
@@ -559,14 +560,20 @@ public final class Indexer {
       // Fixed seed so group field values are always consistent:
       final Random random = new Random(17);
 
-      LineFileDocs lineFileDocs = new LineFileDocs(lineFile, repeatDocs, storeBody, tvsBody, bodyPostingsOffsets, false,
-                                                   taxoWriter, facetDimMethods, facetsConfig, addDVFields,
-                                                   vectorFile, vectorDimension, vectorEncoding);
+      DocsProvider docsProvider;
+      if (lineFile != null && lineFile.endsWith("dynamic.csv")){
+        docsProvider = new CSVDocsProvider(lineFile);
+      }
+      else {
+        docsProvider = new LineFileDocs(lineFile, repeatDocs, storeBody, tvsBody, bodyPostingsOffsets, false,
+            taxoWriter, facetDimMethods, facetsConfig, addDVFields,
+            vectorFile, vectorDimension, vectorEncoding);
+      }
 
       float docsPerSecPerThread = -1f;
       //float docsPerSecPerThread = 100f;
 
-      IndexThreads threads = new IndexThreads(random, w, indexingFailed, lineFileDocs, numThreads, docCountLimit, addGroupingFields, printDPS, mode, docsPerSecPerThread, null, nrtEverySec,
+      IndexThreads threads = new IndexThreads(random, w, indexingFailed, docsProvider, numThreads, docCountLimit, addGroupingFields, printDPS, mode, docsPerSecPerThread, null, nrtEverySec,
                                               randomDocIDMax);
 
       System.out.println("\nIndexer: start");

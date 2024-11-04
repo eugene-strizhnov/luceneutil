@@ -20,7 +20,6 @@ package perf;
 // FIELDS_HEADER_INDICATOR###   title   timestamp   text    username    characterCount  categories  imageCount  sectionCount    subSectionCount subSubSectionCount  refCount
 
 import java.io.BufferedReader;
-import java.io.Closeable;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -75,7 +74,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 
-public class LineFileDocs implements Closeable {
+public class LineFileDocs implements DocsProvider {
 
   // sentinel:
   private final static LineFileDoc END = new LineFileDoc.TextBased("END", null, -1);
@@ -128,16 +127,7 @@ public class LineFileDocs implements Closeable {
     this.vectorEncoding = vectorEncoding;
 
     open();
-    readerThread = new Thread() {
-        @Override
-        public void run() {
-          try {
-            readDocs();
-          } catch (Throwable t) {
-            throw new RuntimeException(t);
-          }
-        }
-      };
+    readerThread = new DocsProvider.ReaderThread<>(queue, END, this::readDocs);
     readerThread.setName("LineFileDocs reader");
     readerThread.setDaemon(true);
     readerThread.start();
@@ -194,9 +184,6 @@ public class LineFileDocs implements Closeable {
         }
         queue.put(new LineFileDoc.TextBased(line, readVector(1), id++));
       }
-    }
-    for(int i=0;i<128;i++) {
-      queue.put(END);
     }
   }
 
@@ -344,7 +331,7 @@ public class LineFileDocs implements Closeable {
 
   private final static char SEP = '\t';
 
-  public static final class DocState {
+  public static final class DocState implements IDocState {
     final Document doc;
     final Field titleTokenized;
     final Field title;
@@ -464,6 +451,16 @@ public class LineFileDocs implements Closeable {
         byteVectorField = null;
       }
     }
+
+    @Override
+    public Field id() {
+      return id;
+    }
+
+    @Override
+    public Document doc() {
+      return doc;
+    }
   }
 
   public DocState newDocState() {
@@ -545,12 +542,12 @@ public class LineFileDocs implements Closeable {
     return true;
   }
 
-  public Document nextDoc(DocState doc) throws IOException {
-    return nextDoc(doc, false);
-  }
-
   @SuppressWarnings({"rawtypes", "unchecked"})
-  public Document nextDoc(DocState doc, boolean expected) throws IOException {
+  public Document nextDoc(IDocState docState, boolean expected) throws IOException {
+    if (!(docState instanceof DocState)){
+      throw new RuntimeException("doc must be an instance of DocState");
+    }
+    DocState doc = (DocState) docState;
 
     long msecSinceEpoch;
     int timeSec;

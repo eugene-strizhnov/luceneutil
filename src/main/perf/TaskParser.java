@@ -53,6 +53,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery.Builder;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.Query;
@@ -462,6 +463,8 @@ class TaskParser implements Closeable {
           return parseDisjunctionMax();
         case "nrq":
           return parseNRQ();
+        case "exists":
+          return parseExists(text);
         case "datetimesort":
           throw new IllegalArgumentException("use lastmodndvsort instead");
         case "titlesort":
@@ -572,6 +575,29 @@ class TaskParser implements Closeable {
       final int start = Integer.parseInt(text.substring(1+spot3, spot4));
       final int end = Integer.parseInt(text.substring(1+spot4));
       return IntPoint.newRangeQuery(nrqFieldName, start, end);
+    }
+
+    Query parseExists(String input) {
+      Builder builder = new Builder();
+      String[] parts = input.trim().split("\\s+");
+
+      for (String part : parts) {
+        String fieldName;
+        Occur occur;
+        if (part.startsWith("+")) {
+          occur = Occur.MUST;
+          fieldName = part.substring(1);
+        } else if (part.startsWith("-")) {
+          occur = Occur.MUST_NOT;
+          fieldName = part.substring(1);
+        } else {
+          occur = Occur.SHOULD;
+          fieldName = part;
+        }
+
+        builder.add(new BooleanClause(new FieldExistsQuery(fieldName), occur));
+      }
+      return builder.build();
     }
 
     Query parseOrderedQuery() {

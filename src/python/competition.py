@@ -44,6 +44,8 @@ WIKI_MEDIUM_10K = Data('wikimedium10k', constants.WIKI_MEDIUM_DOCS_LINE_FILE, 10
 WIKI_MEDIUM_500 = Data('wikimedium500', constants.WIKI_MEDIUM_DOCS_LINE_FILE, 500, constants.WIKI_MEDIUM_TASKS_500DOCS_FILE)
 WIKI_MEDIUM_500K = Data('wikimedium500k', constants.WIKI_MEDIUM_DOCS_LINE_FILE, 500000, constants.WIKI_MEDIUM_TASKS_1MDOCS_FILE)
 WIKI_MEDIUM_2M = Data('wikimedium2m', constants.WIKI_MEDIUM_DOCS_LINE_FILE, 2000000, constants.WIKI_MEDIUM_TASKS_1MDOCS_FILE)
+MONGO_INSURANCE_3M = Data('mongoinsurance3m', constants.INSURANCE_DOCS_CSV_FILE, 3600000, constants.EXISTS_QUERY_TASKS_FILE)
+
 
 MEME_ALL = Data('memeall',
                 '/x/lucene/data/memetracker/lines.txt',
@@ -111,7 +113,8 @@ DATA = {'wikimediumall': WIKI_MEDIUM_ALL,
         'combinedFieldsBig' : COMBINED_FIELDS_BIG,
         'combinedFieldsUnevenlyWeightedBig' : COMBINED_FIELDS_UNEVENLY_WEIGHTED_BIG,
         'combinedFieldsMedium10M' : COMBINED_FIELDS_MEDIUM_10M,
-        'combinedFieldsUnevenlyWeightedMedium10M' : COMBINED_FIELDS_UNEVENLY_WEIGHTED_MEDIUM_10M
+        'combinedFieldsUnevenlyWeightedMedium10M' : COMBINED_FIELDS_UNEVENLY_WEIGHTED_MEDIUM_10M,
+        'mongoinsurance3m' : MONGO_INSURANCE_3M
         }
 
 # for multi-segment index:
